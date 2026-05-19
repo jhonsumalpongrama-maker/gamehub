@@ -19,6 +19,19 @@ extension GameTypeExtension on GameType {
     }
   }
 
+  String get gameTableName {
+    switch (this) {
+      case GameType.ticTacToe:
+        return 'ticTacToe';
+      case GameType.seaBattle:
+        return 'seaBattle';
+      case GameType.chess:
+        return 'chess';
+      case GameType.checkers:
+        return 'checkers';
+    }
+  }
+
   String get tableName {
     switch (this) {
       case GameType.ticTacToe:

@@ -14,7 +14,7 @@ class DatabaseException implements Exception {
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
   static Database? _database;
-  static const int _dbVersion = 2;
+  static const int _dbVersion = 3;
 
   factory DatabaseService() => _instance;
 
@@ -29,6 +29,8 @@ class DatabaseService {
   Future<Database> _initDatabase() async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, 'gamehub.db');
+    // TODO: Remove this line after one release cycle
+    await databaseFactory.deleteDatabase(path);
     return await openDatabase(
       path,
       version: _dbVersion,
@@ -52,7 +54,7 @@ class DatabaseService {
 
     for (var gameType in GameType.values) {
       await db.execute('''
-        CREATE TABLE ${gameType.tableName} (
+        CREATE TABLE ${gameType.name} (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           type INTEGER,
           player1Name TEXT NOT NULL,
@@ -67,7 +69,7 @@ class DatabaseService {
       ''');
 
       await db.execute('''
-        CREATE TABLE ${gameType.tableName}_scores (
+        CREATE TABLE ${gameType.name}_scores (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           playerName TEXT NOT NULL,
           gameId INTEGER,
@@ -85,17 +87,31 @@ class DatabaseService {
       for (var gameType in GameType.values) {
         try {
           await db.execute('''
-            ALTER TABLE ${gameType.tableName} ADD COLUMN type INTEGER
+            ALTER TABLE ${gameType.name} ADD COLUMN type INTEGER
           ''');
         } catch (_) {}
       }
+    }
+    if (oldVersion < 3) {
+      try {
+        await db.execute('ALTER TABLE ticTacToe_scores RENAME TO ticTacToe');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE seaBattle_scores RENAME TO seaBattle');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE chess_scores RENAME TO chess');
+      } catch (_) {}
+      try {
+        await db.execute('ALTER TABLE checkers_scores RENAME TO checkers');
+      } catch (_) {}
     }
   }
 
   Future<int> saveGame(Game game) async {
     try {
       final db = await database;
-      int id = await db.insert(game.type.tableName, game.toMap());
+      int id = await db.insert(game.type.name, game.toMap());
       return id;
     } catch (e) {
       throw DatabaseException('Failed to save game: $e');
@@ -105,8 +121,8 @@ class DatabaseService {
   Future<void> saveGameScore(GameScore score) async {
     try {
       final db = await database;
-      final tableName = GameType.values[score.gameId].tableName;
-      await db.insert('${tableName}_scores', score.toMap());
+      final tableName = '${GameType.values[score.gameId].name}_scores';
+      await db.insert(tableName, score.toMap());
     } catch (e) {
       throw DatabaseException('Failed to save game score: $e');
     }
@@ -116,7 +132,7 @@ class DatabaseService {
     try {
       final db = await database;
       List<Map<String, dynamic>> maps = await db.query(
-        type.tableName,
+        type.name,
         orderBy: 'playedAt DESC',
         limit: limit,
       );
@@ -129,13 +145,14 @@ class DatabaseService {
   Future<List<GameScore>> getTopScores(GameType type, {int limit = 10}) async {
     try {
       final db = await database;
+      final base = type.name;
       List<Map<String, dynamic>> maps = await db.rawQuery('''
         SELECT playerName, 
                SUM(wins) as wins,
                SUM(losses) as losses,
                SUM(draws) as draws,
                SUM(totalPoints) as totalPoints
-        FROM ${type.tableName}_scores
+        FROM ${base}_scores
         GROUP BY playerName
         ORDER BY totalPoints DESC
         LIMIT ?
@@ -161,7 +178,7 @@ class DatabaseService {
       for (var gameType in GameType.values) {
         final result = await db.rawQuery('''
           SELECT SUM(wins) as w, SUM(draws) as d, SUM(losses) as l
-          FROM ${gameType.tableName}_scores
+          FROM ${gameType.name}_scores
           WHERE playerName = ?
         ''', [playerName]);
         
@@ -236,8 +253,8 @@ class DatabaseService {
     try {
       final db = await database;
       for (var gameType in GameType.values) {
-        await db.delete(gameType.tableName);
-        await db.delete('${gameType.tableName}_scores');
+        await db.delete(gameType.name);
+        await db.delete('${gameType.name}_scores');
       }
       await db.delete('players');
       _database = null;

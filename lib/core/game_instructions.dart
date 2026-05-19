@@ -204,13 +204,7 @@ class _HowToPlaySheet extends StatelessWidget {
                 color: AppColors.bg.withValues(alpha: 0.92),
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(28)),
-                border: Border(
-                  top: BorderSide(color: info.accentColor.withValues(alpha: 0.5)),
-                  left: BorderSide(
-                      color: info.accentColor.withValues(alpha: 0.2)),
-                  right: BorderSide(
-                      color: info.accentColor.withValues(alpha: 0.2)),
-                ),
+                border: Border.all(color: info.accentColor.withValues(alpha: 0.4)),
               ),
               child: ListView(
                 controller: controller,
